@@ -5,7 +5,7 @@ import mysql.connector
 from mysql.connector import Error
 
 visited_urls = set()
-base_url = 'https://apfelcast.com/'
+base_url = 'https://technik.schächner.de/'
 
 def get_meta_data_from_url(url, depth=1, max_depth=1000000):
     # Defragment the URL (remove the #fragment part)
