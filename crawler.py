@@ -5,8 +5,7 @@ import mysql.connector
 from mysql.connector import Error
 
 visited_urls = set()
-# Deine Domain, die gecrawlt werden soll
-base_url = 'https://technik.schächner.de/'
+base_url = 'https://apfelcast.com/'
 
 def get_meta_data_from_url(url, depth=1, max_depth=1000000):
     # Defragment the URL (remove the #fragment part)
@@ -91,9 +90,10 @@ def save_meta_data_to_db(url, title, description):
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS meta_data (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    url VARCHAR(255) NOT NULL,
+                    url TEXT NOT NULL,
                     title TEXT,
-                    description TEXT
+                    description TEXT,
+                    likes INT
                 )
             """)
             
@@ -148,7 +148,7 @@ def delete_entry_from_db(url):
 
 
 # Start-URL
-start_url = base_url
+start_url = base_url.rstrip('/')
 
 # Meta-Daten für jede URL abrufen und ausgeben
 get_meta_data_from_url(start_url)
