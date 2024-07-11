@@ -3,9 +3,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
 import mysql.connector
 from mysql.connector import Error
+import time
 
 visited_urls = set()
-base_url = 'https://caesar.xn--schchner-2za.de/'
+base_url = 'https://xn--schchner-2za.de'
 
 def get_meta_data_from_url(url, depth=1, max_depth=1000000):
     # Defragment the URL (remove the #fragment part)
@@ -14,8 +15,8 @@ def get_meta_data_from_url(url, depth=1, max_depth=1000000):
     # Parse the URL
     parsed_url = urlparse(url)
     
-    # Check if the URL is within the base domain (including subdomains)
-    if not parsed_url.netloc.endswith(urlparse(base_url).netloc) or url in visited_urls or depth > max_depth:
+    # Check if the URL has already been visited or if the depth limit has been reached
+    if url in visited_urls or depth > max_depth:
         return
     
     print(f'Crawling URL: {url} (Depth: {depth})')
@@ -47,6 +48,7 @@ def get_meta_data_from_url(url, depth=1, max_depth=1000000):
                     get_meta_data_from_url(next_url, depth + 1, max_depth)
         else:
             print(f'Fehler: {response.status_code} bei URL: {url}')
+            delete_entry_from_db(url)
     except Exception as e:
         print(f'Exception: {str(e)} bei URL: {url}')
 
@@ -112,8 +114,7 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
                     description TEXT,
                     image TEXT,
                     locale TEXT,
-                    type TEXT,
-                    likes INT
+                    type TEXT
                 )
             """)
             
