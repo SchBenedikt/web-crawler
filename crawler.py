@@ -1,12 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
-import mysql.connector
-from mysql.connector import Error
+import psycopg2
+from psycopg2 import Error
 import time
 
 visited_urls = set()
-base_url = 'https://xn--schchner-2za.de'
+base_url = 'https://github.com/schBenedikt'
 
 def get_meta_data_from_url(url, depth=1, max_depth=1000000):
     # Defragment the URL (remove the #fragment part)
@@ -26,6 +26,7 @@ def get_meta_data_from_url(url, depth=1, max_depth=1000000):
         
         if response.status_code == 200:
             visited_urls.add(url)
+            response.encoding = 'utf-8'  # Set the encoding to utf-8 explicitly
             soup = BeautifulSoup(response.content, 'html.parser')
             title = str(soup.title.string) if soup.title else ""
             meta_description = get_meta_description(soup) or ""
@@ -51,22 +52,21 @@ def get_meta_data_from_url(url, depth=1, max_depth=1000000):
             delete_entry_from_db(url)
     except Exception as e:
         print(f'Exception: {str(e)} bei URL: {url}')
-
 def get_meta_description(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:description'}) or soup.find('meta', attrs={'name': 'description'})
-    return meta_tag['content'] if meta_tag else None
+    return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
 def get_meta_image(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:image'})
-    return meta_tag['content'] if meta_tag else None
+    return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
 def get_meta_locale(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:locale'})
-    return meta_tag['content'] if meta_tag else None
+    return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
 def get_meta_type(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:type'})
-    return meta_tag['content'] if meta_tag else None
+    return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
 def is_valid_url(url):
     parsed_url = urlparse(url)
@@ -76,39 +76,27 @@ def has_query_params(url):
     parsed_url = urlparse(url)
     return bool(parsed_url.query)
 
-def url_exists_in_db(url):
+def get_db_connection():
     try:
-        connection = mysql.connector.connect(
+        connection = psycopg2.connect(
             host='localhost',
-            database='browser_engine',
-            user='root',
-            password='25092008'
+            database='search_engine',
+            user='postgres',
+            password='admin'
         )
-        if connection.is_connected():
-            cursor = connection.cursor()
-            cursor.execute("SELECT COUNT(*) FROM meta_data WHERE url = %s", (url,))
-            result = cursor.fetchone()
-            cursor.close()
-            connection.close()
-            
-            return result[0] > 0
+        return connection
     except Error as e:
         print(f'Error: {e}')
-        return False
+        return None
 
 def save_meta_data_to_db(url, title, description, image, locale, type):
     try:
-        connection = mysql.connector.connect(
-            host='localhost',
-            database='browser_engine',
-            user='root',
-            password='25092008'
-        )
-        if connection.is_connected():
+        connection = get_db_connection()
+        if connection:
             cursor = connection.cursor()
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS meta_data (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     url TEXT NOT NULL,
                     title TEXT,
                     description TEXT,
@@ -118,26 +106,13 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
                 )
             """)
             
-            # Check if the new columns exist and add them if not
-            cursor.execute("SHOW COLUMNS FROM meta_data LIKE 'locale'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE meta_data ADD COLUMN locale TEXT")
-                print("Die Spalte 'locale' wurde der Tabelle 'meta_data' hinzugefügt.")
-            
-            cursor.execute("SHOW COLUMNS FROM meta_data LIKE 'type'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE meta_data ADD COLUMN type TEXT")
-                print("Die Spalte 'type' wurde der Tabelle 'meta_data' hinzugefügt.")
-            
             cursor.execute("SELECT * FROM meta_data WHERE url = %s", (url,))
             existing_entry = cursor.fetchone()
-            
+
             if existing_entry:
-                # Eintrag existiert bereits, überprüfe auf Änderungen
                 if (existing_entry[2] != title or existing_entry[3] != description or 
                     existing_entry[4] != image or existing_entry[5] != locale or 
                     existing_entry[6] != type):
-                    # Titel, Beschreibung, Bild-URL, Locale oder Typ haben sich geändert, führe UPDATE aus
                     cursor.execute("""
                         UPDATE meta_data 
                         SET title = %s, description = %s, image = %s, locale = %s, type = %s
@@ -147,7 +122,6 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
                 else:
                     print(f'Die Meta-Daten für {url} sind bereits aktuell.')
             else:
-                # Eintrag existiert nicht, füge neuen Eintrag hinzu
                 cursor.execute("""
                     INSERT INTO meta_data (url, title, description, image, locale, type)
                     VALUES (%s, %s, %s, %s, %s, %s)
@@ -162,13 +136,8 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
 
 def delete_entry_from_db(url):
     try:
-        connection = mysql.connector.connect(
-            host='localhost',
-            database='browser_engine',
-            user='root',
-            password='25092008'
-        )
-        if connection.is_connected():
+        connection = get_db_connection()
+        if connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM meta_data WHERE url = %s", (url,))
             connection.commit()
