@@ -1,57 +1,68 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
-import psycopg2
-from psycopg2 import Error
+import pymongo
+from pymongo import MongoClient
 import time
+import re
 
 visited_urls = set()
 base_url = 'https://github.com/schBenedikt'
+url_queue = []
 
-def get_meta_data_from_url(url, depth=1, max_depth=1000000):
-    # Defragment the URL (remove the #fragment part)
+def get_meta_data_from_url(url, max_depth=1000000):
     url, _ = urldefrag(url)
-    
-    # Parse the URL
     parsed_url = urlparse(url)
     
-    # Check if the URL has already been visited or if the depth limit has been reached
-    if url in visited_urls or depth > max_depth:
+    if url in visited_urls:
         return
     
-    print(f'Crawling URL: {url} (Depth: {depth})')
+    url_queue.append((url, 1))
     
-    try:
-        response = requests.get(url)
+    while url_queue:
+        current_url, depth = url_queue.pop(0)
         
-        if response.status_code == 200:
-            visited_urls.add(url)
-            response.encoding = 'utf-8'  # Set the encoding to utf-8 explicitly
-            soup = BeautifulSoup(response.content, 'html.parser')
-            title = str(soup.title.string) if soup.title else ""
-            meta_description = get_meta_description(soup) or ""
-            meta_image = get_meta_image(soup) or ""
-            meta_locale = get_meta_locale(soup) or ""
-            meta_type = get_meta_type(soup) or ""
+        if depth > max_depth:
+            continue
+        
+        print(f'Crawling URL: {current_url} (Depth: {depth})')
+        
+        try:
+            response = requests.get(current_url)
             
-            print(f'Titel der Seite {url}: {title}')
-            print(f'Meta-Beschreibung der Seite {url}: {meta_description}')
-            print(f'Bild-URL der Seite {url}: {meta_image}')
-            print(f'Sprache der Seite {url}: {meta_locale}')
-            print(f'Typ der Seite {url}: {meta_type}')
-            
-            save_meta_data_to_db(url, title, meta_description, meta_image, meta_locale, meta_type)
-            
-            for link in soup.find_all('a', href=True):
-                href = link['href']
-                next_url = urljoin(url, href)
-                if is_valid_url(next_url) and not has_query_params(next_url):
-                    get_meta_data_from_url(next_url, depth + 1, max_depth)
-        else:
-            print(f'Fehler: {response.status_code} bei URL: {url}')
-            delete_entry_from_db(url)
-    except Exception as e:
-        print(f'Exception: {str(e)} bei URL: {url}')
+            if response.status_code == 200:
+                visited_urls.add(current_url)
+                response.encoding = 'utf-8'
+                soup = BeautifulSoup(response.content, 'html.parser')
+                title = str(soup.title.string) if soup.title else ""
+                meta_description = get_meta_description(soup) or ""
+                meta_image = get_meta_image(soup) or ""
+                meta_locale = get_meta_locale(soup) or ""
+                meta_type = get_meta_type(soup) or ""
+                
+                print(f'Titel der Seite {current_url}: {title}')
+                print(f'Meta-Beschreibung der Seite {current_url}: {meta_description}')
+                print(f'Bild-URL der Seite {current_url}: {meta_image}')
+                print(f'Sprache der Seite {current_url}: {meta_locale}')
+                print(f'Typ der Seite {current_url}: {meta_type}')
+                
+                save_meta_data_to_db(current_url, title, meta_description, meta_image, meta_locale, meta_type)
+                
+                for link in soup.find_all('a', href=True):
+                    href = link['href']
+                    next_url = urljoin(current_url, href)
+                    if is_valid_url(next_url) and not has_query_params(next_url):
+                        url_queue.append((next_url, depth + 1))
+            else:
+                print(f'Fehler: {response.status_code} bei URL: {current_url}')
+                delete_entry_from_db(current_url)
+        except requests.exceptions.RequestException as e:
+            print(f'RequestException: {str(e)} bei URL: {current_url}')
+            time.sleep(5)
+            url_queue.append((current_url, depth))
+        except Exception as e:
+            print(f'Exception: {str(e)} bei URL: {current_url}')
+
 def get_meta_description(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:description'}) or soup.find('meta', attrs={'name': 'description'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
@@ -78,75 +89,83 @@ def has_query_params(url):
 
 def get_db_connection():
     try:
-        connection = psycopg2.connect(
-            host='localhost',
-            database='search_engine',
-            user='postgres',
-            password='admin'
-        )
-        return connection
-    except Error as e:
+        client = MongoClient('localhost', 27017)
+        db = client['search_engine']
+        return db
+    except Exception as e:
         print(f'Error: {e}')
         return None
 
 def save_meta_data_to_db(url, title, description, image, locale, type):
     try:
-        connection = get_db_connection()
-        if connection:
-            cursor = connection.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS meta_data (
-                    id SERIAL PRIMARY KEY,
-                    url TEXT NOT NULL,
-                    title TEXT,
-                    description TEXT,
-                    image TEXT,
-                    locale TEXT,
-                    type TEXT
-                )
-            """)
-            
-            cursor.execute("SELECT * FROM meta_data WHERE url = %s", (url,))
-            existing_entry = cursor.fetchone()
+        db = get_db_connection()
+        if db:
+            collection = db['meta_data']
+            existing_entry = collection.find_one({"url": url})
 
             if existing_entry:
-                if (existing_entry[2] != title or existing_entry[3] != description or 
-                    existing_entry[4] != image or existing_entry[5] != locale or 
-                    existing_entry[6] != type):
-                    cursor.execute("""
-                        UPDATE meta_data 
-                        SET title = %s, description = %s, image = %s, locale = %s, type = %s
-                        WHERE url = %s
-                    """, (title, description, image, locale, type, url))
+                if (existing_entry['title'] != title or existing_entry['description'] != description or 
+                    existing_entry['image'] != image or existing_entry['locale'] != locale or 
+                    existing_entry['type'] != type):
+                    collection.update_one(
+                        {"url": url},
+                        {"$set": {
+                            "title": title,
+                            "description": description,
+                            "image": image,
+                            "locale": locale,
+                            "type": type
+                        }}
+                    )
                     print(f'Die Meta-Daten für {url} wurden aktualisiert.')
                 else:
                     print(f'Die Meta-Daten für {url} sind bereits aktuell.')
             else:
-                cursor.execute("""
-                    INSERT INTO meta_data (url, title, description, image, locale, type)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (url, title, description, image, locale, type))
+                collection.insert_one({
+                    "url": url,
+                    "title": title,
+                    "description": description,
+                    "image": image,
+                    "locale": locale,
+                    "type": type
+                })
                 print(f'Die Meta-Daten für {url} wurden gespeichert.')
-            
-            connection.commit()
-            cursor.close()
-            connection.close()
-    except Error as e:
+    except Exception as e:
         print(f'Error: {e}')
 
 def delete_entry_from_db(url):
     try:
-        connection = get_db_connection()
-        if connection:
-            cursor = connection.cursor()
-            cursor.execute("DELETE FROM meta_data WHERE url = %s", (url,))
-            connection.commit()
-            cursor.close()
-            connection.close()
+        db = get_db_connection()
+        if db:
+            collection = db['meta_data']
+            collection.delete_one({"url": url})
             print(f'Der Eintrag für {url} wurde aus der Datenbank gelöscht, da die Seite nicht mehr erreichbar ist.')
-    except Error as e:
+    except Exception as e:
         print(f'Error: {e}')
 
+def is_allowed_by_robots_txt(url):
+    parsed_url = urlparse(url)
+    robots_url = urljoin(f"{parsed_url.scheme}://{parsed_url.netloc}", "/robots.txt")
+    
+    try:
+        response = requests.get(robots_url)
+        if response.status_code == 200:
+            robots_txt = response.text
+            user_agent = "*"
+            disallowed_paths = []
+            for line in robots_txt.splitlines():
+                line = line.strip()
+                if line.startswith("User-agent:"):
+                    user_agent = line.split(":")[1].strip()
+                elif line.startswith("Disallow:") and user_agent == "*":
+                    disallowed_path = line.split(":")[1].strip()
+                    disallowed_paths.append(disallowed_path)
+            for path in disallowed_paths:
+                if re.match(path, parsed_url.path):
+                    return False
+        return True
+    except requests.exceptions.RequestException:
+        return True
 
 # Start-URL
 start_url = base_url.rstrip('/')
