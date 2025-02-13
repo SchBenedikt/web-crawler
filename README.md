@@ -43,6 +43,45 @@ pip install -r requirements.txt
 python crawler.py
 ```
 
+## Installing MongoDB
+
+To install MongoDB on your local machine, follow the instructions for your operating system:
+
+### Windows
+
+1. Download the MongoDB installer from the official MongoDB website: [MongoDB Download Center](https://www.mongodb.com/try/download/community)
+2. Run the installer and follow the installation steps.
+3. After installation, start the MongoDB service by running the following command in the Command Prompt:
+
+```bash
+net start MongoDB
+```
+
+### macOS
+
+1. Install Homebrew if you haven't already: [Homebrew Installation](https://brew.sh/)
+2. Use Homebrew to install MongoDB by running the following command in the Terminal:
+
+```bash
+brew tap mongodb/brew
+brew install mongodb-community@4.4
+```
+
+3. Start the MongoDB service by running the following command:
+
+```bash
+brew services start mongodb/brew/mongodb-community
+```
+
+### Linux
+
+1. Follow the official MongoDB installation guide for your specific Linux distribution: [MongoDB Installation Guides](https://docs.mongodb.com/manual/installation/)
+2. After installation, start the MongoDB service by running the following command:
+
+```bash
+sudo systemctl start mongod
+```
+
 ## Example Usage
 
 The web crawler starts from the base URL `https://github.com/schBenedikt` and extracts metadata from each page it visits. The metadata is then stored in the `meta_data` collection of the `search_engine` database in MongoDB.
