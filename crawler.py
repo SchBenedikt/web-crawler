@@ -6,10 +6,16 @@ from pymongo import MongoClient
 import time
 import re
 
+# Set of visited URLs to avoid duplicates
 visited_urls = set()
+
+# Base URL to start crawling from
 base_url = 'https://github.com/schBenedikt'
+
+# Queue to manage URLs to be crawled
 url_queue = []
 
+# Function to get metadata from a URL
 def get_meta_data_from_url(url, max_depth=1000000):
     url, _ = urldefrag(url)
     parsed_url = urlparse(url)
@@ -63,30 +69,37 @@ def get_meta_data_from_url(url, max_depth=1000000):
         except Exception as e:
             print(f'Exception: {str(e)} bei URL: {current_url}')
 
+# Function to get the meta description from a BeautifulSoup object
 def get_meta_description(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:description'}) or soup.find('meta', attrs={'name': 'description'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
+# Function to get the meta image from a BeautifulSoup object
 def get_meta_image(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:image'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
+# Function to get the meta locale from a BeautifulSoup object
 def get_meta_locale(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:locale'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
+# Function to get the meta type from a BeautifulSoup object
 def get_meta_type(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:type'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
+# Function to check if a URL is valid
 def is_valid_url(url):
     parsed_url = urlparse(url)
     return parsed_url.scheme in {'http', 'https'}
 
+# Function to check if a URL has query parameters
 def has_query_params(url):
     parsed_url = urlparse(url)
     return bool(parsed_url.query)
 
+# Function to get a connection to the MongoDB database
 def get_db_connection():
     try:
         client = MongoClient('localhost', 27017)
@@ -96,6 +109,7 @@ def get_db_connection():
         print(f'Error: {e}')
         return None
 
+# Function to save metadata to the MongoDB database
 def save_meta_data_to_db(url, title, description, image, locale, type):
     try:
         db = get_db_connection()
@@ -133,6 +147,7 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
     except Exception as e:
         print(f'Error: {e}')
 
+# Function to delete an entry from the MongoDB database
 def delete_entry_from_db(url):
     try:
         db = get_db_connection()
@@ -143,6 +158,7 @@ def delete_entry_from_db(url):
     except Exception as e:
         print(f'Error: {e}')
 
+# Function to check if a URL is allowed by the robots.txt file
 def is_allowed_by_robots_txt(url):
     parsed_url = urlparse(url)
     robots_url = urljoin(f"{parsed_url.scheme}://{parsed_url.netloc}", "/robots.txt")
@@ -167,8 +183,8 @@ def is_allowed_by_robots_txt(url):
     except requests.exceptions.RequestException:
         return True
 
-# Start-URL
+# Start URL
 start_url = base_url.rstrip('/')
 
-# Meta-Daten für jede URL abrufen und ausgeben
+# Get and print metadata for each URL
 get_meta_data_from_url(start_url)
