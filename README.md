@@ -82,6 +82,28 @@ brew services start mongodb/brew/mongodb-community
 sudo systemctl start mongod
 ```
 
+## Creating the Database and Collection
+
+To create the `search_engine` database and the `meta_data` collection in MongoDB, follow these steps:
+
+1. Open the MongoDB shell by running the following command in your terminal:
+
+```bash
+mongo
+```
+
+2. Create the `search_engine` database and switch to it:
+
+```javascript
+use search_engine
+```
+
+3. Create the `meta_data` collection:
+
+```javascript
+db.createCollection("meta_data")
+```
+
 ## Example Usage
 
 The web crawler starts from the base URL `https://github.com/schBenedikt` and extracts metadata from each page it visits. The metadata is then stored in the `meta_data` collection of the `search_engine` database in MongoDB.
