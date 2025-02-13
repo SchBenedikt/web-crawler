@@ -113,7 +113,7 @@ def get_db_connection():
 def save_meta_data_to_db(url, title, description, image, locale, type):
     try:
         db = get_db_connection()
-        if db:
+        if db is not None:
             collection = db['meta_data']
             existing_entry = collection.find_one({"url": url})
 
@@ -151,7 +151,7 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
 def delete_entry_from_db(url):
     try:
         db = get_db_connection()
-        if db:
+        if db is not None:
             collection = db['meta_data']
             collection.delete_one({"url": url})
             print(f'Der Eintrag für {url} wurde aus der Datenbank gelöscht, da die Seite nicht mehr erreichbar ist.')
