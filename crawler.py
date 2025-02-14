@@ -45,14 +45,16 @@ def get_meta_data_from_url(url, max_depth=1000000):
                 meta_image = get_meta_image(soup) or ""
                 meta_locale = get_meta_locale(soup) or ""
                 meta_type = get_meta_type(soup) or ""
+                main_content = get_main_content(soup) or ""
                 
                 print(f'Titel der Seite {current_url}: {title}')
                 print(f'Meta-Beschreibung der Seite {current_url}: {meta_description}')
                 print(f'Bild-URL der Seite {current_url}: {meta_image}')
                 print(f'Sprache der Seite {current_url}: {meta_locale}')
                 print(f'Typ der Seite {current_url}: {meta_type}')
+                print(f'Hauptinhalt der Seite {current_url}: {main_content}')
                 
-                save_meta_data_to_db(current_url, title, meta_description, meta_image, meta_locale, meta_type)
+                save_meta_data_to_db(current_url, title, meta_description, meta_image, meta_locale, meta_type, main_content)
                 
                 for link in soup.find_all('a', href=True):
                     href = link['href']
@@ -89,6 +91,11 @@ def get_meta_type(soup):
     meta_tag = soup.find('meta', attrs={'property': 'og:type'})
     return meta_tag['content'].encode('utf-8').strip().decode('utf-8') if meta_tag else None
 
+# Function to get the main content from a BeautifulSoup object
+def get_main_content(soup):
+    main_content = soup.find('body')
+    return main_content.get_text().encode('utf-8').strip().decode('utf-8') if main_content else None
+
 # Function to check if a URL is valid
 def is_valid_url(url):
     parsed_url = urlparse(url)
@@ -110,7 +117,7 @@ def get_db_connection():
         return None
 
 # Function to save metadata to the MongoDB database
-def save_meta_data_to_db(url, title, description, image, locale, type):
+def save_meta_data_to_db(url, title, description, image, locale, type, main_content):
     try:
         db = get_db_connection()
         if db is not None:
@@ -120,7 +127,7 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
             if existing_entry:
                 if (existing_entry['title'] != title or existing_entry['description'] != description or 
                     existing_entry['image'] != image or existing_entry['locale'] != locale or 
-                    existing_entry['type'] != type):
+                    existing_entry['type'] != type or existing_entry['main_content'] != main_content):
                     collection.update_one(
                         {"url": url},
                         {"$set": {
@@ -128,7 +135,8 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
                             "description": description,
                             "image": image,
                             "locale": locale,
-                            "type": type
+                            "type": type,
+                            "main_content": main_content
                         }}
                     )
                     print(f'Die Meta-Daten für {url} wurden aktualisiert.')
@@ -141,7 +149,8 @@ def save_meta_data_to_db(url, title, description, image, locale, type):
                     "description": description,
                     "image": image,
                     "locale": locale,
-                    "type": type
+                    "type": type,
+                    "main_content": main_content
                 })
                 print(f'Die Meta-Daten für {url} wurden gespeichert.')
     except Exception as e:
