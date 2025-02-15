@@ -1,10 +1,10 @@
 # web-crawler
 
-A simple web crawler using Python that stores the metadata of each web page in a database.
+A simple web crawler using Python that stores the metadata and main content of each web page in a database.
 
 ## Purpose and Functionality
 
-The web crawler is designed to crawl web pages starting from a base URL, extract metadata such as title, description, image, locale, and type, and store this information in a MongoDB database. The crawler can handle multiple levels of depth and respects the `robots.txt` rules of the websites it visits.
+The web crawler is designed to crawl web pages starting from a base URL, extract metadata such as title, description, image, locale, type, and main content, and store this information in a MongoDB database. The crawler can handle multiple levels of depth and respects the `robots.txt` rules of the websites it visits.
 
 ## Dependencies
 
@@ -82,11 +82,33 @@ brew services start mongodb/brew/mongodb-community
 sudo systemctl start mongod
 ```
 
+## Creating the Database and Collection
+
+To create the `search_engine` database and the `meta_data` collection in MongoDB, follow these steps:
+
+1. Open the MongoDB shell by running the following command in your terminal:
+
+```bash
+mongo
+```
+
+2. Create the `search_engine` database and switch to it:
+
+```javascript
+use search_engine
+```
+
+3. Create the `meta_data` collection:
+
+```javascript
+db.createCollection("meta_data")
+```
+
 ## Example Usage
 
-The web crawler starts from the base URL `https://github.com/schBenedikt` and extracts metadata from each page it visits. The metadata is then stored in the `meta_data` collection of the `search_engine` database in MongoDB.
+The web crawler starts from the base URL `https://github.com/schBenedikt` and extracts metadata and main content from each page it visits. The metadata and main content are then stored in the `meta_data` collection of the `search_engine` database in MongoDB.
 
-Here is an example of how the metadata is stored in the database:
+Here is an example of how the metadata and main content are stored in the database:
 
 ```json
 {
@@ -95,11 +117,12 @@ Here is an example of how the metadata is stored in the database:
   "description": "GitHub profile of schBenedikt",
   "image": "https://avatars.githubusercontent.com/u/12345678?v=4",
   "locale": "en_US",
-  "type": "profile"
+  "type": "profile",
+  "main_content": "This is the main content of the page."
 }
 ```
 
-The web crawler will print the metadata of each page it visits to the console and save it to the database. If a page is not reachable, the corresponding entry will be deleted from the database.
+The web crawler will print the metadata and main content of each page it visits to the console and save it to the database. If a page is not reachable, the corresponding entry will be deleted from the database.
 
 ## Notes
 
